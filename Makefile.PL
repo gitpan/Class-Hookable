@@ -8,7 +8,7 @@ requires 'Scalar::Util';
 
 build_requires 'Test::More' ;
 
-tests 't/*.t';
+tests 't/*.t t/*/*.t';
 
 auto_include;
 auto_install;

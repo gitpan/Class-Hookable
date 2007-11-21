@@ -6,7 +6,7 @@ use warnings;
 use Carp ();
 use Scalar::Util();
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new { bless {}, shift }
 
@@ -34,7 +34,7 @@ sub register_hook {
             callback    => $callback,
         };
 
-        if ( $self->filter_plugin( $hook, $action ) ) {
+        if ( $self->filter_register_hook( $hook, $action ) ) {
             $self->hooks->{$hook} = []
                 if ( ref $self->hooks->{$hook} ne 'ARRAY' );
 
@@ -43,7 +43,7 @@ sub register_hook {
     }
 }
 
-sub filter_plugin { 1 }
+sub filter_register_hook { 1 }
 
 sub registered_hooks {
     my ( $self, $object ) = @_;
@@ -140,7 +140,7 @@ sub run_hook {
     my $context = ( defined $self->context ) ? $self->context : $self ;
 
     for my $action ( $self->registered_plugins( $hook ) ) {
-        if ( $self->dispatch_plugin( $hook, $args, $action ) ) {
+        if ( $self->filter_run_hook( $hook, $args, $action ) ) {
             my $plugin = $action->{'plugin'};
             my $result = $action->{'callback'}->( $plugin, $context, $args );
             $callback->( $result ) if ( $callback );
@@ -162,7 +162,7 @@ sub run_hook_once {
     return $self->run_hook( $hook, $args, 1, $callback );
 }
 
-sub dispatch_plugin { 1 }
+sub filter_run_hook { 1 }
 
 sub context {
     my $self = shift;
@@ -209,9 +209,9 @@ Class::Hookable is the simple base class for the hook mechanism.
 This module supports only a hook mechanism.
 
 This module was made by making reference to the hook mechanism of L<Plagger>.
-I thank L<Tatsuhiko miyagawa|http://search.cpan.org/~miyagawa/> who made wonderful application.
+I thank Tatsuhiko Miyagawa who made wonderful application.
 
-=head1 METHODS
+=head1 BASIC METHOD
 
 =head2 new
 
@@ -219,6 +219,8 @@ I thank L<Tatsuhiko miyagawa|http://search.cpan.org/~miyagawa/> who made wonderf
 
 This method is a constructor of Class::Hookable.
 Nothing but that is being done.
+
+=head1 REGISTER METOHDS
 
 =head2 register_hook
 
@@ -233,9 +235,9 @@ This method registers a plugin object and callbacks which corresponds to hooks.
 The plugin object is specified as the first argument,
 and one after that is specified by the order of C<'hook' =E<gt> \&callabck>.
 
-=head2 filter_plugin
+=head2 filter_register_hook
 
-  sub filter_plugin {
+  sub filter_register_hook {
       my ( $self, $hook, $action ) = @_;
       my ( $plugin, $callback ) = @{ $action }{qw( plugin callback )};
       # your filter code
@@ -260,6 +262,8 @@ When this method has returned ture, plugin and hook are registered,
 and when having returned false, it isn't registered.
 
 This method exists to rewrite when inheriting.
+
+=head1 UTILITY METHODS
 
 =head2 registered_hooks
 
@@ -304,6 +308,8 @@ all plugin registered with the hook are deleted.
 
 And when specifying a hook and plugin object (or class name) as arguments,
 specified plugins are deleted from a specified hook.
+
+=head1 CALL METHODS
 
 =head2 run_hook
 
@@ -387,15 +393,15 @@ C<$args> specified by the run_hook method.
 
 This method is an alias of C<$hook-E<gt>run_hook( $hook, $args, 1, \&callback )>.
 
-=head2 dispatch_plugin
+=head2 filter_run_hook
 
-  sub dispatch_plugin {
+  sub filter_run_hook {
       my ( $self, $hook, $args, $action ) = @_;
       my ( $plugin, $callabck ) = @{ $action }{qw( plugin callback )};
       # some code
   }
 
-When calling a hook, this method does a dispatch of a plugin.
+When calling a hook, this method is filtered a plugin.
 Argument are passed by the order of C<$hook>, C<$args>, C<$action>.
 
 =over 3
@@ -419,6 +425,8 @@ and when having returned false, callback isn't called.
 
 This method exists to rewrite when inheriting.
 
+=head1 ACCESSOR METOHDS
+
 =head2 context
 
   my $context = $hook->context;
@@ -440,7 +448,9 @@ all method of Class::Hookable is accessing hooks through this method.
 
 =head1 AUTHOR
 
-Naoki Okamura (Nyarla) E<lt>thotep@nayrla.netE<gt>
+Original idea by Tatsuhiko Miyagawa L<http://search.cpan.org/~miyagawa> in L<Plagger>
+
+Code by Naoki Okamura (Nyarla) E<lt>thotep@nayrla.netE<gt>
 
 =head1 LICENSE
 

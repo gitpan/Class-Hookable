@@ -16,11 +16,11 @@ Makefile.PL
 MANIFEST			This list of files
 META.yml
 README
-t/00_compile.t
-t/01_new.t
-t/02_register_hook.t
-t/03_registered_hooks.t
-t/04_registered_plugins.t
-t/05_delete_plugin.t
-t/06_delete_hook.t
-t/07_run_hook.t
+t/00_basic/00_compile.t
+t/00_basic/01_new.t
+t/01_register/00_register_hook.t
+t/02_utility/00_registered_hooks.t
+t/02_utility/01_registered_plugins
+t/02_utility/02_delete_plugin.t
+t/02_utility/03_delete_hook.t
+t/03_call/00_run_hook.t

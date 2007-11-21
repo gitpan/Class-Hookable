@@ -62,7 +62,7 @@ is_deeply(
 # -- dispatch_plugin test ------------ #
 
 no warnings 'redefine';
-*Class::Hookable::dispatch_plugin = sub {
+*Class::Hookable::filter_run_hook = sub {
     my ( $self, $hook, $args, $action ) = @_;
 
     is( $hook, 'dispatch' );

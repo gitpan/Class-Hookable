@@ -26,7 +26,7 @@ is(
 
 {
     no warnings 'redefine';
-    *Class::Hookable::filter_plugin = sub { 0 };
+    *Class::Hookable::filter_register_hook = sub { 0 };
 }
 
 $hook->register_hook(
