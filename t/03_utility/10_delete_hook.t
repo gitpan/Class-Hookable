@@ -32,7 +32,7 @@ is_deeply(
 $hook->delete_hook('hook.B');
 
 is_deeply(
-    [ $hook->registered_plugins('hook.B') ],
+    [ $hook->registered_callbacks('hook.B') ],
     [],
 );
 

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 5 + 2 + 4;
+use Test::More tests => 5 + 2 + 6;
 use Class::Hookable;
 
 my $hook    = Class::Hookable->new;
@@ -45,7 +45,7 @@ sub callback {
 
 # -- context test -------------------- #
 
-$hook->context( Context->new );
+$hook->hookable_context( Context->new );
 
 $hook->run_hook_once('context');
 
@@ -61,22 +61,26 @@ is_deeply(
 
 # -- dispatch_plugin test ------------ #
 
-no warnings 'redefine';
-*Class::Hookable::filter_run_hook = sub {
-    my ( $self, $hook, $args, $action ) = @_;
 
-    is( $hook, 'dispatch' );
-    is( $args, undef );
-    is_deeply(
-        $action,
-        {
-            plugin      => $plugin,
-            callback    => $plugin->can('foo'),
-        }
-    );
+$hook->hookable_set_filter(
+    'run_hook' => sub {
+        my ( $self, $filter, $hook, $args, $action ) = @_;
 
-    return 0;
-};
+        isa_ok( $self, 'Class::Hookable' );
+        is( $filter, 'run_hook' );
+        is( $hook, 'dispatch' );
+        is( $args, undef );
+        is_deeply(
+            $action,
+            {
+                plugin      => $plugin,
+                callback    => $plugin->can('foo'),
+            }
+        );
+
+        return 0;
+    },
+);
 
 is(
     $hook->run_hook_once('dispatch'),

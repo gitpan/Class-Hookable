@@ -23,7 +23,7 @@ $hook->register_hook(
 );
 
 is_deeply(
-    [ $hook->registered_plugins('aaa.bbb') ],
+    [ $hook->registered_callbacks('aaa.bbb') ],
     [
         { plugin => $pluginA, callback => $pluginA->can('foo') },
         { plugin => $pluginB, callback => $pluginB->can('foo') },

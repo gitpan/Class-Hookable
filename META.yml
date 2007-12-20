@@ -1,8 +1,9 @@
 --- 
 abstract: Base class for hook mechanism
-author: Original idea by Tatsuhiko Miyagawa L<http://search.cpan.org/~miyagawa> in L<Plagger>
+author: Naoki Okamura (Nyarla) <thotep@nyarla.net>
 build_requires: 
-  Test::More: 0
+  Test::Builder: 0.74
+  Test::More: 0.74
 distribution_type: module
 generated_by: Module::Install version 0.67
 license: perl
@@ -18,4 +19,4 @@ requires:
   Carp: 0
   Scalar::Util: 0
 tests: t/*.t t/*/*.t
-version: 0.02
+version: 0.03

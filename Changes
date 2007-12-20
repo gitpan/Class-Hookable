@@ -1,5 +1,63 @@
 Revision history for Perl extension Class::Hookable
 
+0.03  Thu Dec 14:20:00 JST 2007
+        * Substantial Changes *
+        * Change in the filter method of the plugin *
+          Previous Class::Hookable could rewrite a filter only by inheritance,
+          but the filter could be changed now every instance by this change.
+          The previous filter_register_hook method and filter_run_hook method aren't
+          used by this change in default any more.
+        * hookable method *
+          Hookable method was added.
+          There is several difference for hook and method,
+          but a detailed thing see POD, please.
+          The registered_plugins method was moved to register_callbacks,
+          and the function of the delete_plugin method was changed.
+        * Addition and change of the utility method *
+          The method which operates the hook and the method for
+          this addition of the functions was added.
+        * Change in the method name *
+          I changed the name of several methods to avoid collision with
+          the method name when inheriting to Class::Hookable.
+          Please see the following list about the method renamed.
+        * bug fix *
+          It was corrected that a test of the registered_hooks method was failed.
+          The cause was that an enumerated hook name isn't being sorted.
+          The registered_hooks method starts always to return a sorted result by this correction.
+        * The method added newly
+          [register method]
+          - register_method
+          [call method]
+          - call_method
+          [filter method]
+          - hookable_set_filter
+          - hookable_call_filter
+          - hookable_filter_prefix
+          [utility method]
+          - registered_methods
+          - registered_function
+          - delete_method
+          - delete_function
+          - delete_callback
+          [accessor method]
+          - hookable_stash
+          - hookable_all_methods
+        * The method to which the function was changed
+          - registered_hooks
+            This method had just returned the hook with which a plug-in is registered,
+            but it came to return all hook name registered when it was called without arguments.
+          - delete_plugin
+            This method deleted only the plugin registered with a hook,
+            but it came also to delete the hookable method added newly.
+        * The method renamed
+          [before]                -> [after]
+          - context               -> hookable_context
+          - hooks                 -> hookable_all_hooks
+          - registered_plugins    -> registered_callbacks
+        * The abolished method
+          - filter_register_hook
+          - filter_run_hook
+
 0.02  Wed Nov 11 13:00:00 JST 2007
         * renamed 2 methods
           filter_plugin     -> filter_register_hook
