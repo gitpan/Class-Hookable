@@ -19,4 +19,4 @@ requires:
   Carp: 0
   Scalar::Util: 0
 tests: t/*.t t/*/*.t
-version: 0.03
+version: 0.04

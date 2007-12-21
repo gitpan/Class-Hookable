@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::Base tests => 4;
+use Test::More tests => 4;
 use Class::Hookable;
 
 my $hook = Class::Hookable->new;

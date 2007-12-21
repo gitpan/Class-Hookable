@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::Hookable
 
+0.04  Fri Dec 11:50:00 JST 2007
+        - Correction of a mistake of a test file: 02_hookable_call_filter.t
+          [before] 06: use Test::Base tests => 4;
+          [after]  06: use Test::More tests => 4;
+
 0.03  Thu Dec 14:20:00 JST 2007
         * Substantial Changes *
         * Change in the filter method of the plugin *
