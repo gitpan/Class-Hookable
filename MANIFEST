@@ -38,3 +38,4 @@ t/03_utility/12_delete_method.t
 t/03_utility/13_delete_function.t
 t/03_utility/14_delete_plugin.t
 t/04_call/00_run_hook.t
+t/04_call/01_call_method.t

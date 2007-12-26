@@ -7,7 +7,7 @@ use Carp ();
 use Scalar::Util();
 
 use vars qw( $VERSION );
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 sub new { bless {}, shift }
 
@@ -352,7 +352,11 @@ sub run_hook {
     if ( defined $callback && ref $callback ne 'CODE' ) {
         Carp::croak "callabck is not code reference.";
     }
-    
+
+    if ( ! defined $hook ) {
+        Carp::croak "hook name is not specified.";
+    }
+
 
     my @results;
 
@@ -379,6 +383,30 @@ sub run_hook {
 sub run_hook_once {
     my ( $self, $hook, $args, $callback ) = @_;
     return $self->run_hook( $hook, $args, 1, $callback );
+}
+
+sub call_method {
+    my ( $self, $method, $args ) = @_;
+
+    if ( ! defined $method ) {
+        Carp::croak "method name is not specified.";
+    }
+
+    my $context = ( defined $self->hookable_context )
+                ? $self->hookable_context
+                : $self ;
+
+    my $action = $self->registered_function( $method );
+    return if ( ! $action );
+
+    if ( $self->hookable_call_filter( 'call_method', $method, $args, $action ) ) {
+        my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
+        my $result = $function->( $plugin, $context, $args );
+        return $result;
+    }
+    else {
+        return;
+    }
 }
 
 1;
@@ -622,6 +650,91 @@ The hash reference including the plugin and the callback.
   my $result = $hook->run_hook_once( $hook, $args, $callback );
 
 This method is an alias of C<$hook-E<gt>run_hook( $hook, $args, 1, \&callback )>.
+
+=head2 call_method
+
+  my $result = $hook->call_method( $method => $args );
+
+This method calls function of the registered plugin to method.
+Arguments are specified by the order of C<$method> and C<$args>.
+
+When the function was not found,
+no this methods are returned.
+
+B<Arguments of call_method method>:
+
+=over 2
+
+=item C<$method>
+
+Designation of the method name with which a plugin was registered.
+This argument is indispensable.
+
+=item C<$args>
+
+The argument which passes it to function.
+This argument is optional.
+
+=back
+
+B<Arguments of registered function>:
+
+  sub function {
+      my ( $plugin, $context, $args ) = @_;
+      # some code
+  }
+
+The argument by which it is passed to callback is C<$plugin>, C<$context>, C<$args>.
+
+=over 3
+
+=item C<$plugin>
+
+The plugin object which passed a plugin and function to the register_method method when registering.
+
+=item C<$context>
+
+When C<$hook-E<gt>hookable_context> is specified, the specified object is passed,
+and when it isn't so, object of Class::Hookable (or object of inherited Class::Hookable class) is passed.
+
+Please see L<"hookable_context"> about context object which can be specified in C<$hook-E<gt>hookable_context>.
+
+=item C<$args>
+
+The argument specified by the run_hook method.
+
+=back
+
+B<Arguments of C<$hook-E<gt>hookable_call_filter>>:
+
+  $hook->hookable_call_filter( 'call_method', $method, $args, $action );
+
+Only when C<$hook-E<gt>hookable_call_filter( 'call_method', $method, $args, $action )> has returned truth,
+this method calls function.
+
+Please see L<"hookable_call_filter"> about C<$hook-E<gt>hookable_call_filter>.
+
+=over 4
+
+=item C<'call_method'>
+
+C<'call_method'> is filter name.
+
+=item C<$method>
+
+The function name specified by the call_method method.
+
+=item C<$args>
+
+The argument specified by the call_method method.
+
+=item C<$action>
+
+  my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
+
+The hash reference including the plugin and the function.
+
+=back
 
 =head1 FILTER METHODS
 

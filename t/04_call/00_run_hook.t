@@ -43,6 +43,11 @@ sub callback {
     is( $result, 'FOO' );
 }
 
+is_deeply(
+    [ $hook->run_hook('foobar') ],
+    [qw( FOO BAR )],
+);
+
 # -- context test -------------------- #
 
 $hook->hookable_context( Context->new );
@@ -54,13 +59,8 @@ sub context {
 
     isa_ok( $context, 'Context' );
 }
-is_deeply(
-    [ $hook->run_hook('foobar') ],
-    [qw( FOO BAR )],
-);
 
 # -- dispatch_plugin test ------------ #
-
 
 $hook->hookable_set_filter(
     'run_hook' => sub {

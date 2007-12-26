@@ -1,11 +1,14 @@
 Revision history for Perl extension Class::Hookable
 
-0.04  Fri Dec 11:50:00 JST 2007
+0.05  Wed Dec 26 10:42:00 JST 2007
+        * I forgot to implement the call_method method.
+
+0.04  Fri Dec 21 11:50:00 JST 2007
         - Correction of a mistake of a test file: 02_hookable_call_filter.t
           [before] 06: use Test::Base tests => 4;
           [after]  06: use Test::More tests => 4;
 
-0.03  Thu Dec 14:20:00 JST 2007
+0.03  Thu Dec 20 14:20:00 JST 2007
         * Substantial Changes *
         * Change in the filter method of the plugin *
           Previous Class::Hookable could rewrite a filter only by inheritance,
