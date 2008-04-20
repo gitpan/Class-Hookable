@@ -9,6 +9,6 @@ use Class::Hookable;
 my $hook = Class::Hookable->new;
 
 is(
-    ref $hook->hookable_all_methods,
+    ref $hook->class_hookable_methods,
     'HASH',
 );

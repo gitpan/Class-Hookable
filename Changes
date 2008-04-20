@@ -1,5 +1,54 @@
 Revision history for Perl extension Class::Hookable
 
+0.06  Sun Apr 20 18:53:26 JST 2008
+        * Substantial Changes *
+          The change to which it isn't compatible is included in this change.
+        * Renamed of several methods
+          The method name Class::Hookable uses internally was changed.
+          The change is as follows:
+            hookable_stash          -> class_hookable_stash
+            hookable_context        -> class_hookable_context
+            hookable_all_hooks      -> class_hookable_hooks
+            hookable_all_method     -> class_hookable_methods
+            hookable_set_filter     -> class_hookable_set_filter
+            hookable_filter_perfix  -> class_hookable_filter_prefix
+            hookable_call_filter    -> class_hookable_filter
+        * Change in the specification of the filter
+          1. Addition of accessor method which keeps filters
+             Accessor method which keeps filters every instance was added.
+             The added method is as follows:
+            - class_hookable_filters
+          2. Change in the behavior of $hook->class_hookable_filter_prefix
+             This method was ordinary accessor so far, when prefix of a filter wasn't specified,
+             ite came to return value 'class_hookable_filter' of default.
+          3. Change in the order of priority search of a filter
+             The order of priority search of a filter was changed.
+             before:
+               1. The filter specified every instance
+               2. The filter implemented by a class method
+             after:
+               1. The filter implemented by a class method
+               2. The filter specified every instance
+        * Arrangement of API which jumbled up
+          The method which jumbled up was arranged and unified.
+          This change includes change in the behavior of the method,
+          abolition of the method and addition of the new method.
+          Added method:
+            - remove_hook
+            - remove_method
+            - clear_hooks
+            - clear_methods
+          Changed method:
+            - registered_hooks
+            - registered_methods
+          Abolished method:
+            - registered_callbacks
+            - registered_fuction
+            - delete_hook
+            - delete_callback
+            - delete_method
+            - delete_function
+
 0.05  Wed Dec 26 10:42:00 JST 2007
         * I forgot to implement the call_method method.
 

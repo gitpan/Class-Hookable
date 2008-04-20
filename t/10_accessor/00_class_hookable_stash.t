@@ -8,8 +8,8 @@ use Class::Hookable;
 
 my $hook = Class::Hookable->new;
 
-can_ok( $hook, 'hookable_stash' );
+can_ok( $hook, 'class_hookable_stash' );
 is(
-    ref $hook->hookable_stash,
+    ref $hook->class_hookable_stash,
     'HASH',
 );

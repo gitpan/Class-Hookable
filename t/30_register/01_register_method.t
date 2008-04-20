@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More tests => 6;
 use Class::Hookable;
+use lib 't';
+use DummyClass;
 
 my $hook    = Class::Hookable->new;
 my $plugin  = Plugin->new;
@@ -15,14 +17,14 @@ $hook->register_method(
 );
 
 is_deeply(
-    $hook->hookable_all_methods->{'foo.bar'},
+    $hook->class_hookable_methods->{'foo.bar'},
     {
         plugin      => $plugin,
         function    => $plugin->can('foo'),
     },
 );
 
-$hook->hookable_set_filter(
+$hook->class_hookable_set_filter(
     'register_method' => sub {
         my ( $self, $filter, $method, $action ) = @_;
         isa_ok( $self, 'Class::Hookable' );
@@ -45,13 +47,6 @@ $hook->register_method(
 );
 
 is(
-    $hook->hookable_all_methods->{'bar.baz'},
+    $hook->class_hookable_methods->{'bar.baz'},
     undef,
 );
-
-package Plugin;
-
-sub new { bless {}, shift }
-sub foo {}
-sub bar {}
-

@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More tests => 5 + 2 + 6;
 use Class::Hookable;
+use lib 't';
+use DummyClass;
 
 my $hook    = Class::Hookable->new;
 my $plugin  = Plugin->new;
@@ -50,7 +52,7 @@ is_deeply(
 
 # -- context test -------------------- #
 
-$hook->hookable_context( Context->new );
+$hook->class_hookable_context( Context->new );
 
 $hook->run_hook_once('context');
 
@@ -62,9 +64,9 @@ sub context {
 
 # -- dispatch_plugin test ------------ #
 
-$hook->hookable_set_filter(
+$hook->class_hookable_set_filter(
     'run_hook' => sub {
-        my ( $self, $filter, $hook, $args, $action ) = @_;
+        my ( $self, $filter, $hook, $action, $args ) = @_;
 
         isa_ok( $self, 'Class::Hookable' );
         is( $filter, 'run_hook' );
@@ -86,11 +88,3 @@ is(
     $hook->run_hook_once('dispatch'),
     undef,
 );
-
-package Plugin;
-sub new { bless {}, shift }
-sub foo { 'FOO' }
-sub bar { 'BAR' }
-
-package Context;
-sub new { bless {}, shift }

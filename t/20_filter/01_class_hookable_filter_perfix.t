@@ -9,13 +9,13 @@ use Class::Hookable;
 my $hook = Class::Hookable->new;
 
 is(
-    $hook->hookable_filter_prefix,
-    undef,
+    $hook->class_hookable_filter_prefix,
+    'class_hookable_filter',
 );
 
-$hook->hookable_filter_prefix('myfilter_prefix');
+$hook->class_hookable_filter_prefix('myfilter_prefix');
 
 is(
-    $hook->hookable_filter_prefix,
+    $hook->class_hookable_filter_prefix,
     'myfilter_prefix',
 );

@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More tests => 7;
 use Class::Hookable;
+use lib 't';
+use DummyClass;
 
 my $hook = Class::Hookable->new;
 my $plugin = Plugin->new;
@@ -15,16 +17,16 @@ $hook->register_hook(
 );
 
 is(
-    $hook->hookable_all_hooks->{'foo.bar'}->[0]->{'plugin'},
+    $hook->class_hookable_hooks->{'foo.bar'}->[0]->{'plugin'},
     $plugin,
 );
 
 is(
-    $hook->hookable_all_hooks->{'foo.bar'}->[0]->{'callback'},
+    $hook->class_hookable_hooks->{'foo.bar'}->[0]->{'callback'},
     $plugin->can('foo'),
 );
 
-$hook->hookable_set_filter(
+$hook->class_hookable_set_filter(
     'register_hook' => sub {
         my ( $self, $filter, $hook, $action ) = @_;
         isa_ok( $self, 'Class::Hookable' );
@@ -46,15 +48,6 @@ $hook->register_hook(
 );
 
 is(
-    $hook->hookable_all_hooks->{'foo.bar'}->[1],
+    $hook->class_hookable_hooks->{'foo.bar'}->[1],
     undef,
 );
-
-package Plugin;
-
-sub new { bless {}, shift }
-sub foo {}
-sub bar {}
-
-1;
-__END__

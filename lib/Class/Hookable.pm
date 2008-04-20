@@ -4,53 +4,41 @@ use strict;
 use warnings;
 
 use Carp ();
-use Scalar::Util();
+use Scalar::Util ();
 
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 sub new { bless {}, shift }
 
-sub hookable_stash {
+sub class_hookable_stash {
     my ( $self ) = @_;
 
-    if ( ref $self->{'Class::Hookable'} ne 'HASH' ) {
-        $self->{'Class::Hookable'} = {
-            hooks   => {},
-            methods => {},
-            filters => {},
-        };
-    }
+    $self->{'Class::Hookable'} = {
+        hooks   => {},
+        methods => {},
+        filters => {},
+    } if ( ref $self->{'Class::Hookable'} ne 'HASH' );
 
     return $self->{'Class::Hookable'};
 }
 
 
-sub hookable_context {
+sub class_hookable_context {
     my $self = shift;
 
-    if ( @_ ) {
-        my $context = shift;
-        if ( ref($context) && ! Scalar::Util::blessed($context) ) {
-            Carp::croak "Argument is not blessed object or class name.";
-        }
-        $self->hookable_stash->{'context'} = $context;
+    if ( my $context = shift ) {
+        $self->class_hookable_stash->{'context'} = $context;
     }
 
-    return $self->hookable_stash->{'context'};
+    return $self->class_hookable_stash->{'context'};
 }
 
-sub hookable_all_hooks {
-    my $self = shift;
-    return $self->hookable_stash->{'hooks'};
-}
+sub class_hookable_hooks      { shift->class_hookable_stash->{'hooks'}      }
+sub class_hookable_methods    { shift->class_hookable_stash->{'methods'}    }
+sub class_hookable_filters    { shift->class_hookable_stash->{'filters'}    }
 
-sub hookable_all_methods {
-    my $self = shift;
-    return $self->hookable_stash->{'methods'};
-}
-
-sub hookable_set_filter {
+sub class_hookable_set_filter {
     my ( $self, @filters ) = @_;
 
     while ( my ( $method, $filter ) = splice @filters, 0, 2 ) {
@@ -60,37 +48,37 @@ sub hookable_set_filter {
         Carp::croak "filter is not CODE reference."
             if ( ref $filter ne 'CODE' );
 
-        $self->hookable_stash->{'filters'}->{$method} = $filter;
+        $self->class_hookable_filters->{$method} = $filter;
     }
 
 }
 
-sub hookable_filter_prefix {
+sub class_hookable_filter_prefix {
     my $self = shift;
 
-    if ( @_ ) {
-        my $prefix = shift;
+    if ( my $prefix = shift ) {
         Carp::croak "Invalid filter prefix. you can use [a-zA-Z_]"
-            if ( $prefix =~ m{[^a-zA-Z_]} );
-        $self->hookable_stash->{'filter_prefix'} = $prefix;
+            if ( $prefix =~ m{^a-zA-Z_} );
+        $self->class_hookable_stash->{'filter_prefix'} = $prefix;
     }
     else {
-        return $self->hookable_stash->{'filter_prefix'};
+        my $prefix = $self->class_hookable_stash->{'filter_prefix'}
+                   || 'class_hookable_filter';
+        return $prefix;
     }
 }
 
-sub hookable_call_filter {
+sub class_hookable_filter {
     my ( $self, $name, @args ) = @_;
 
     Carp::croak "Filter name is not specified."
         if ( ! $name );
 
-    my $prefix = $self->hookable_filter_prefix
-              || 'hookable_filter';
+    my $prefix  = $self->class_hookable_filter_prefix;
 
-    my $filter   = $self->hookable_stash->{'filters'}->{$name};
-       $filter ||= $self->can("${prefix}_${name}");
-       $filter ||= sub { return 1 };
+    my $filter  = $self->can("${prefix}_${name}")
+               || $self->class_hookable_filters->{$name}
+               || sub { 1 };
 
     return $filter->( $self, $name, @args );
 }
@@ -110,11 +98,11 @@ sub register_hook {
             callback    => $callback,
         };
 
-        if ( $self->hookable_call_filter( 'register_hook', $hook, $action ) ) {
-            $self->hookable_all_hooks->{$hook} = []
-                if ( ref $self->hookable_all_hooks->{$hook} ne 'ARRAY' );
+        if ( $self->class_hookable_filter( 'register_hook', $hook, $action ) ) {
+            $self->class_hookable_hooks->{$hook} = []
+                if ( ref $self->class_hookable_hooks->{$hook} ne 'ARRAY' );
 
-            push @{ $self->hookable_all_hooks->{$hook} }, $action;
+            push @{ $self->class_hookable_hooks->{$hook} }, $action;
         }
     }
 }
@@ -134,8 +122,8 @@ sub register_method {
             function    => $function,
         };
 
-        if ( $self->hookable_call_filter( 'register_method', $method, $action ) ) {
-            $self->hookable_all_methods->{$method} = $action;
+        if ( $self->class_hookable_filter( 'register_method', $method, $action ) ) {
+            $self->class_hookable_methods->{$method} = $action;
         }
     }
 }
@@ -143,207 +131,242 @@ sub register_method {
 sub registered_hooks {
     my $self = shift;
 
-    my @hooks;
-
-    if ( @_ > 0 ) {
+    if ( @_ == 0 ) {
+        return ( wantarray )
+            ? ( sort keys %{ $self->class_hookable_hooks } )
+            : $self->class_hookable_hooks
+            ;
+    }
+    else {
         my $object = shift;
+        my $comp;
+        my $return;
 
-        if ( ref $object && ! Scalar::Util::blessed( $object ) ) {
-            Carp::croak "Argument is not blessed object or class name.";
+        if ( Scalar::Util::blessed($object) || ! ref $object ) {
+            $comp = 'plugin';
+        }
+        elsif ( ref $object eq 'CODE') {
+            $comp = 'callback';
+        }
+        else {
+            Carp::croak "Unsupport object: Support objects are scalar, blessed object and CODE reference.";
         }
 
-        my $is_class = ( ! ref $object ) ? 1 : 0 ;
+        $return = ( $comp eq 'plugin' )
+                ? 'callback'
+                : 'plugin'
+                ;
 
-        for my $hook ( keys %{ $self->hookable_all_hooks } ) {
-            for my $action ( @{ $self->hookable_all_hooks->{$hook} } ) {
-                my $plugin = $action->{'plugin'};
-                my $class  = ref $plugin || $plugin;
-                if ( $is_class ) {
-                    push @hooks, $hook if ( $class eq $object );
-                }
-                else {
-                    push @hooks, $hook if ( $plugin eq $object );
+        my @data;
+        my @hooks;
+
+        for my $hook ( sort keys %{ $self->class_hookable_hooks } ) {
+            for my $action ( @{ $self->class_hookable_hooks->{$hook} || [] } ) {
+                my $target = $action->{$comp};
+                if ( $target eq $object ) {
+                    push @data, ( $hook => $action->{$return} );
+                    push @hooks, $hook;
                 }
             }
         }
+
+        my %count;
+        @hooks = grep { ! $count{$_}++ } @hooks;
+
+        return ( wantarray ) ? @hooks : \@data ;
     }
-    else {
-        @hooks = keys %{ $self->hookable_all_hooks };
-    }
-
-    @hooks = sort { $a cmp $b } @hooks;
-    return @hooks;
-}
-
-sub registered_callbacks {
-    my ( $self, $hook ) = @_;
-
-    Carp::croak "Hook name is not specified." if ( ! defined $hook );
-
-    my $list = $self->hookable_all_hooks->{$hook};
-       $list ||= [];
-
-    return @{ $list };
 }
 
 sub registered_methods {
-    my $self    = shift;
-    my @methods = ();
+    my $self = shift;
 
-    if ( @_ > 0 ) {
+    if ( @_ == 0 ) {
+        return ( wantarray )
+            ? ( sort keys %{ $self->class_hookable_methods } )
+            : $self->class_hookable_methods
+            ;
+    }
+    else {
         my $object = shift;
+        my $comp;
+        my $return;
 
-        if ( ref $object && ! Scalar::Util::blessed($object) ) {
-            Carp::croak "Argument is not blessed object or class name.";
+        if ( Scalar::Util::blessed($object) || ! ref $object ) {
+            $comp = 'plugin';
+        }
+        elsif ( ref $object eq 'CODE') {
+            $comp = 'function';
+        }
+        else {
+            Carp::croak "Unsupport object: Support objects are scalar, blessed object and CODE reference.";
         }
 
-        my $is_class = ( ! ref $object ) ? 1 : 0 ;
+        $return = ( $comp eq 'plugin' )
+                ? 'function'
+                : 'plugin'
+                ;
 
-        for my $method ( keys %{ $self->hookable_all_methods } ) {
-            my $plugin  = $self->hookable_all_methods->{$method}->{'plugin'};
-            next if ( ! defined $plugin );
-            my $class   = ref $plugin || $plugin;
-            if ( $is_class ) {
-                push @methods, $method if ( $class eq $object );
-            }
-            else {
-                push @methods, $method if ( $plugin eq $object );
+        my @data;
+        my @methods;
+
+        for my $method ( sort keys %{ $self->class_hookable_methods } ) {
+            my $action = $self->class_hookable_methods->{$method} || {};
+            my $target = $action->{$comp};
+            if ( $target eq $object ) {
+                push @data, ( $method => $action->{$return} );
+                push @methods, $method;
             }
         }
-    }
-    else {
-        @methods = keys %{ $self->hookable_all_methods };
-    }
 
-    @methods = sort { $a cmp $b } @methods;
-    return @methods;
+        my %count;
+        @methods = grep { ! $count{$_}++ } @methods;
+
+        return ( wantarray ) ? @methods : \@data ;
+    }
 }
 
-sub registered_function {
-    my ( $self, $method ) = @_;
+sub remove_hook {
+    my ( $self, %opt ) = @_;
 
-    Carp::croak "Method name is not specified"
-        if ( ! $method );
-
-    my $action = $self->hookable_all_methods->{$method};
-
-    return if ( ! $action );
-    return $action;
-}
-
-sub delete_hook {
-    my ( $self, $hook, @plugins ) = @_;
-
-    Carp::croak "Hook is not specified." if ( ! defined $hook );
-
-    if ( @plugins == 0 ) {
-        $self->hookable_all_hooks->{$hook} = [];
+    my $targets = delete $opt{'target'}
+        or Carp::croak "Deletion 'target' is not specified.";
+       $targets = [ $targets ] if ( ref $targets ne 'ARRAY' );
+    my @tmp;
+    for my $target ( @{ $targets } ) {
+        if ( Scalar::Util::blessed($target) || ! ref $target ) {
+            $target = { plugin => $target };
+        }
+        elsif ( ref $target eq 'CODE' ) {
+            $target = { callback => $target };
+        }
+        elsif (  ref $target eq 'HASH') {}
+        else {
+            Carp::croak "Unsuppot target: $target";
+        }
+        push @tmp, $target;
     }
-    else {
-        my @new;
-        for my $action ( $self->registered_callbacks( $hook ) ) {
-            my $plugin = $action->{'plugin'};
-            my $class  = ref $plugin || $plugin;
-            for my $object ( @plugins ) {
-                if ( ref $object && ! Scalar::Util::blessed($object) ) {
-                    Carp::croak "Argument is not blessed object or class name.";
+    $targets = \@tmp;
+
+
+    my $froms = delete $opt{'from'} || [ $self->registered_hooks ];
+       $froms = [ $froms ] if ( ref $froms ne 'ARRAY' );
+
+    my $removed = {};
+    for my $hook ( @{ $froms } ) {
+        my @filtered = ();
+        ACTION: for my $action ( @{ $self->class_hookable_hooks->{$hook} } ) {
+            for my $target ( @{ $targets } ) {
+                if ( defined $target->{'plugin'} && defined $target->{'callback'} ) {
+                    if (
+                        $action->{'plugin'} eq $target->{'plugin'}
+                        && $action->{'callback'} eq $target->{'callback'}
+                    ) {
+                        push @{ $removed->{$hook} }, $action;
+                        next ACTION;
+                    }
                 }
-
-                my $is_class = ( ! ref $object ) ? 1 : 0 ;
-                if ( $is_class ) {
-                    push @new, $action if ( $class ne $object );
+                elsif ( defined $target->{'plugin'} || defined $target->{'callback'} ) {
+                    my $comp = ( defined $target->{'plugin'} )
+                             ? 'plugin'
+                             : 'callback' ;
+                    if ( $action->{$comp} eq $target->{$comp} ) {
+                        push @{ $removed->{$hook} }, $action;
+                        next ACTION;
+                    }
                 }
                 else {
-                    push @new, $action if ( $plugin ne $object );
+                    Carp::croak "Compared target is not specified.";
                 }
             }
+            push @filtered, $action;
         }
-        $self->hookable_all_hooks->{$hook} = \@new;
-    } 
+        $self->class_hookable_hooks->{$hook} = \@filtered;
+    }
+
+    return $removed;
 }
 
-sub delete_callback {
-    my ( $self, $callback, @hooks ) = @_;
+sub remove_method {
+    my ( $self, %opt ) = @_;
 
-    Carp::croak "Callback is not CODE reference."
-        if ( ref $callback ne 'CODE' );
+    my $targets = delete $opt{'target'}
+        or Carp::croak "Deletion 'target' is not specified.";
+       $targets = [ $targets ] if ( ref $targets ne 'ARRAY' );
+    my @tmp;
+    for my $target ( @{ $targets } ) {
+        if ( ! ref $target || Scalar::Util::blessed($target) ) {
+            $target = { plugin => $target };
+        }
+        elsif ( ref $target eq 'CODE' ) {
+            $target = { function => $target };
+        }
+        elsif ( ref $target eq 'HASH' ) {}
+        else {
+            Carp::croak "Unsupport target: $target";
+        }
+        push @tmp, $target;
+    }
+    $targets = \@tmp;
 
-    @hooks = $self->registered_hooks
-        if ( @hooks == 0 );
+    my $froms = delete $opt{'from'} || [ $self->registered_methods ];
+       $froms = [ $froms ] if ( ref $froms ne 'ARRAY' );
 
-    for my $hook ( @hooks ) {
-        my @new;
-        for my $action ( $self->registered_callbacks( $hook ) ) {
-            if ( $action->{'callback'} ne $callback ) {
-                push @new, $action;
+    my $removed = {};
+    METHOD: for my $method ( @{ $froms } ) {
+        my $action = $self->class_hookable_methods->{$method};
+        for my $target ( @{ $targets } ) {
+            if ( defined $target->{'plugin'} && defined $target->{'function'} ) {
+                if (
+                    $action->{'plugin'} eq $target->{'plugin'}
+                    && $action->{'function'} eq $target->{'function'}
+                ) {
+                    $removed->{$method} = delete $self->class_hookable_methods->{$method};
+                    next METHOD;
+                }
             }
-        }
-        $self->hookable_all_hooks->{$hook} = \@new;
-    }
-}
-
-sub delete_method {
-    my ( $self, $method, @plugins ) = @_;
-
-    Carp::croak "Method name is not specified."
-        if ( ! defined $method );
-
-    return if ( ! defined $self->hookable_all_methods->{$method} );
-
-    my $plugin = $self->hookable_all_methods->{$method}->{'plugin'};
-    my $class  = ref $plugin || $plugin;
-
-    if ( @plugins == 0 ) {
-        delete $self->hookable_all_methods->{$method};
-    }
-    else {
-        for my $object ( @plugins ) {
-            my $is_class = ( ! ref $object ) ? 1 : 0 ;
-            if ( $is_class ) {
-                delete $self->hookable_all_methods->{$method}
-                    if ( $class eq $object );
+            elsif ( defined $target->{'plugin'} || defined $target->{'function'} ) {
+                my $comp = ( defined $target->{'plugin'} )
+                         ? 'plugin'
+                         : 'function' ;
+                if ( $action->{$comp} eq $target->{$comp} ) {
+                    $removed->{$method} = delete $self->class_hookable_methods->{$method};
+                    next METHOD;
+                }
             }
             else {
-                delete $self->hookable_all_methods->{$method}
-                    if ( $plugin eq $object );
+                Carp::croak "Compared target is not specified.";
             }
         }
     }
+
+    return $removed;
 }
 
-sub delete_function {
-    my ( $self, $function, @methods ) = @_;
+sub clear_hooks {
+    my ( $self, @hooks ) = @_;
+    @hooks = $self->registered_hooks if ( scalar @hooks <= 0 );
 
-    Carp::croak "Function is not CODE reference."
-        if ( ref $function ne 'CODE' );
+    my $removed = {};
 
-    @methods = $self->registered_methods
-        if ( @methods == 0 );
+    for my $hook ( @hooks ) {
+        next if ( ! exists $self->class_hookable_hooks->{$hook} );
+        $removed->{$hook} = delete $self->class_hookable_hooks->{$hook};
+    }
 
+    return $removed;
+}
+
+sub clear_methods {
+    my ( $self, @methods ) = @_;
+    @methods = $self->registered_methods if ( scalar @methods <= 0 );
+
+    my $removed = {};
     for my $method ( @methods ) {
-        my $action = $self->registered_function( $method );
-        if ( $action->{'function'} eq $function ) {
-            $self->delete_method( $method );
-        }
-    }
-}
-
-sub delete_plugin {
-    my ( $self, $object, @points ) = @_;
-
-    if ( ref $object && ! Scalar::Util::blessed($object) ) {
-        Carp::croak "Argument is not blessed object or class name.";
+        next if ( ! exists $self->class_hookable_methods->{$method} );
+        $removed->{$method} = delete $self->class_hookable_methods->{$method};
     }
 
-    if ( @points == 0 ) {
-        push @points, $self->registered_hooks( $object );
-        push @points, $self->registered_methods( $object );
-    }
-
-    for my $point ( @points ) {
-        $self->delete_hook( $point => $object );
-        $self->delete_method( $point => $object );
-    }
+    return $removed;
 }
 
 sub run_hook {
@@ -357,18 +380,17 @@ sub run_hook {
         Carp::croak "hook name is not specified.";
     }
 
-
     my @results;
 
-    my $context = ( defined $self->hookable_context ) ? $self->hookable_context : $self ;
+    my $context = ( defined $self->class_hookable_context ) ? $self->class_hookable_context : $self ;
 
-    for my $action ( $self->registered_callbacks( $hook ) ) {
-        if ( $self->hookable_call_filter( 'run_hook', $hook, $args, $action ) ) {
+    for my $action ( @{ $self->class_hookable_hooks->{$hook} || [] } ) {
+        if ( $self->class_hookable_filter( 'run_hook', $hook, $action, $args ) ) {
             my $plugin = $action->{'plugin'};
             my $result = $action->{'callback'}->( $plugin, $context, $args );
             $callback->( $result ) if ( $callback );
             if ( $once ) {
-                return $result if ( defined $once );
+                return $result if ( defined $result );
             }
             else {
                 push @results, $result;
@@ -392,14 +414,14 @@ sub call_method {
         Carp::croak "method name is not specified.";
     }
 
-    my $context = ( defined $self->hookable_context )
-                ? $self->hookable_context
+    my $context = ( defined $self->class_hookable_context )
+                ? $self->class_hookable_context
                 : $self ;
 
-    my $action = $self->registered_function( $method );
+    my $action  = $self->class_hookable_methods->{$method};
     return if ( ! $action );
 
-    if ( $self->hookable_call_filter( 'call_method', $method, $args, $action ) ) {
+    if ( $self->class_hookable_filter( 'call_method', $method, $action, $args ) ) {
         my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
         my $result = $function->( $plugin, $context, $args );
         return $result;
@@ -440,7 +462,7 @@ I thank Tatsuhiko Miyagawa and Plagger contributors.
 
 B<NOTE>:
 
-Class::Hookable is having substantial changes from version 0.02 to version0.03.
+Class::Hookable is having substantial changes from version 0.05 to version0.06.
 When using Class::Hookable, please be careful.
 
 Please see Changes file about a change point.
@@ -469,32 +491,10 @@ This method registers a plugin object and callbacks which corresponds to hooks.
 The plugin object is specified as the first argument,
 and one after that is specified by the order of C<'hook' =E<gt> \&callabck>.
 
-Only when C<$hook-E<gt>hookable_call_filter( 'run_hook', $hook, $action )> has returned truth,
+Only when C<$hook-E<gt>class_hookable_filter( 'run_hook', $hook, $action )> has returned truth,
 the callback specified by this method is registered with a hook.
 
-Please see L<"hookable_call_filter"> about C<$hook-E<gt>hookable_call_filter>.
-
-B<Arguments of C<$hook-E<gt>hookable_call_filter>>:
-
-  $hook->hookable_call_filter( 'run_hook', $hook, $action );
-
-=over 3
-
-=item 'run_hook'
-
-C<'run_hook'> is filter name.
-
-=item $hook
-
-The hook name specified as the register_hook method.
-
-=item $action
-
-  my ( $plugin, $callback ) = @{ $action }{qw( plugin callback )};
-
-The hash reference including plugin and callback.
-
-=back
+Please see L<"class_hookable_filter"> about C<$hook-E<gt>class_hookable_filter>.
 
 =head2 register_method
 
@@ -511,30 +511,10 @@ The specification of arguments is same as L<"register_hook"> method.
 The method is different from B<hook> and only a set of plugin and function are kept about one method.
 When specifying the method name which exists already, the old method is replaced with the new method.
 
-Only when C<$hook-E<gt>hookable_call_filter( 'register_method', $method, $action )> has returned truth,
+Only when C<$hook-E<gt>class_hookable_filter( 'register_method', $method, $action )> has returned truth,
 this method registers a plugin and function.
 
-Please see L<"hookable_call_filter"> about C<$hook-E<gt>hookable_call_filter>.
-
-B<Arguments of C<$hook-E<gt>hookable_call_filter>>:
-
-=over 3
-
-=item C<'register_method'>
-
-C<'run_hook'> is filter name.
-
-=item C<$method>
-
-The method name specified as the register_method method.
-
-=item C<$action>
-
-  my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
-
-The hash reference including plugin and function.
-
-=back
+Please see L<"class_hookable_filter"> about C<$hook-E<gt>class_hookable_filter>.
 
 =head1 CALL METHODS
 
@@ -549,7 +529,7 @@ Arguments are specified by the order of C<$hook>, C<$args>, C<$once> and C<$call
 
 B<Arguments to run_hook method>:
 
-=over 4
+=over
 
 =item C<$hook>
 
@@ -593,7 +573,7 @@ B<Arguments of registered callback>:
 
 The argument by which it is passed to callback is C<$plugin>, C<$context>, C<$args>.
 
-=over 3
+=over
 
 =item C<$plugin>
 
@@ -614,36 +594,10 @@ the argument specified by the run_hook method.
 
 =back
 
-B<Arguments of C<$hook-E<gt>hookable_call_filter>>:
-
-  $hook->hookable_call_filter( 'run_hook', $hook, $args, $action );
-
-Only when C<$hook-E<gt>hookable_call_filter( 'run_hook', $hook, $args, $action )> has returned truth,
+Only when C<$hook-E<gt>class_hookable_filter( 'run_hook', $hook, $action, $args )> has returned truth,
 this method calls callback.
 
-Please see L<"hookable_call_filter"> about C<$hook-E<gt>hookable_call_filter>.
-
-=over 4
-
-=item 'run_hook'
-
-C<'run_hook'> is filter name.
-
-=item C<$hook>
-
-The hook name specified by the run_hook method.
-
-=item C<$args>
-
-The argument specified by the run_hook method.
-
-=item C<$action>
-
-  my ( $plugin, $callback ) = @{ $action }{qw( plugin callback )};
-
-The hash reference including the plugin and the callback.
-
-=back
+Please see L<"class_hookable_filter"> about C<$hook-E<gt>class_hookable_filter>.
 
 =head2 run_hook_once
 
@@ -663,7 +617,7 @@ no this methods are returned.
 
 B<Arguments of call_method method>:
 
-=over 2
+=over
 
 =item C<$method>
 
@@ -686,7 +640,7 @@ B<Arguments of registered function>:
 
 The argument by which it is passed to callback is C<$plugin>, C<$context>, C<$args>.
 
-=over 3
+=over
 
 =item C<$plugin>
 
@@ -705,42 +659,16 @@ The argument specified by the run_hook method.
 
 =back
 
-B<Arguments of C<$hook-E<gt>hookable_call_filter>>:
-
-  $hook->hookable_call_filter( 'call_method', $method, $args, $action );
-
-Only when C<$hook-E<gt>hookable_call_filter( 'call_method', $method, $args, $action )> has returned truth,
+Only when C<$hook-E<gt>class_hookable_filter( 'call_method', $method, $action, $args )> has returned truth,
 this method calls function.
 
-Please see L<"hookable_call_filter"> about C<$hook-E<gt>hookable_call_filter>.
-
-=over 4
-
-=item C<'call_method'>
-
-C<'call_method'> is filter name.
-
-=item C<$method>
-
-The function name specified by the call_method method.
-
-=item C<$args>
-
-The argument specified by the call_method method.
-
-=item C<$action>
-
-  my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
-
-The hash reference including the plugin and the function.
-
-=back
+Please see L<"class_hookable_filter"> about C<$hook-E<gt>class_hookable_filter>.
 
 =head1 FILTER METHODS
 
-=head2 hookable_set_filter
+=head2 class_hookable_set_filter
 
-  $hook->hookable_set_filter(
+  $hook->class_hookable_set_filter(
       register_hook => \&filterA
       run_hook      => \&filterB,
   );
@@ -753,11 +681,24 @@ The character which can be used for the filter name is C<[a-zA-Z_]>.
 When registering a homonymous filter of the filter registered already,
 a old filter is replaced with a new filter.
 
-Please see L<"hookable_call_filter"> about a calling of the filter.
+Please see L<"class_hookable_filter"> about a calling of the filter.
 
-=head2 hookable_call_filter
+=head2 class_hookable_filter_prefix
 
-  my $bool = $hook->hookable_call_filter( $name => @args );
+  $hook->class_hookable_filter_prefix('myfilter_prefix');
+
+This method is accessor of filter prefix.
+
+When finding filter in C<$hook-E<gt>class_hookable_filter> method,
+prefix specified by this method is used.
+
+The character which can be used for the filter prefix is C<[a-zA-Z_]>.
+
+When prefix is not specified, this method returns C<'class_hookable_filter'> by default.
+
+=head2 class_hookable_filter
+
+  my $result = $hook->hookable_call_filter( $filter => @args );
 
 This method calls a specified filter.
 
@@ -768,180 +709,452 @@ B<Search of filter>:
 
 This method searches for a filter from several places.
 
-First, when a specified filter is specified by C<$hook-E<gt>hookable_set_filter> method, 
-the filter is used.
-
-Next when C<$hook-E<gt>can("${prefix}_${filter_name}")> is defined,
+First, when C<$hook-E<gt>can("${prefix}_${filter_name}")> is defined,
 its method is used as a filter.
 
-C<${prefix}> is return value of $hook->hookable_filter_prefix,
+C<${prefix}> is return value of C<$hook-E<gt>class_hookable_filter_prefix>,
 and C<${filter_name}> is the filter name specified as this method.
 
-When C<$hook-E<gt>hookble_filter_perfix> is not specified, 
-C<${prefix}> will be C<'hookable_filter'>.
+Please see L<"class_hookable_filter_prefix"> about C<$hook-E<gt>class_hookable_filter_prefix>.
 
-Please see L<"hookable_filter_prefix"> about C<$hook-E<gt>hookable_filter_prefix>.
+Next when a specified filter is specified by C<$hook-E<gt>class_hookable_set_filter> method,
+the filter is used.
 
-When a filter wasn't found, this method uses the filter to which truth is just always returned.
+When a filter was not found, this method uses the filter to which truth is just always returned.
 
 B<Arguments of filter>:
 
-  $hook->hookable_set_filter(
-      'run_hook' => sub {
-          my ( $hook, $filter, @args ) = @_;
+  $hook->class_hookable_set_filter(
+      register_hook     => sub {
+          my ( $hook, $filter, $hook, $action ) = @_;
       },
-  );
+      register_method   => sub {
+          my ( $hook, $filter, $method, $action ) = @_;
+      },
+      run_hook          => sub {
+          my ( $hook, $filter, $hook, $action, $args ) = @_;
+      },
+      call_method       => sub {
+          my ( $hook, $filter, $method, $action, $args ) = @_;
+      },
+  )
 
-=over 3
+The filters Class::Hookable calls are C<'register_hook'>, C<'register_method'>,
+C<'run_hook'> and C<'call_method'>, and the argument to which it's passed is as follows.
+
+=over
 
 =item C<$hook>
 
-Instance of Class::Hookable (or the class inheriting to Class::Hookable).
+Instance of Class::Hookable ( or the class inheriting to Class::Hookable ).
+
+This argument is passed to all filters.
 
 =item C<$filter>
 
-The filter name called in C<$hook-E<gt>hookable_call_filter>.
+The filter name called in C<$hook-E<gt>class_hookable_filter>.
+
+This argument is passed to all filters.
 
 =item C<@args>
 
-Arguments to the filter to which it was passed by C<$hook-E<gt>hookable_call_filter>.
+Arguments to the filter to which it was passed by C<$hook-E<gt>class_hookable_filter>.
+
+The argument when Class::Hookable calls a filter, is as follows.
+
+=over
+
+=item C<$hook> or C<$method>
+
+the hook name or the method name.
+
+This argument is passed to all C<'register_hook'>, C<'reigster_method'>, C<'run_hook'> and C<'call_method'>.
+
+=item C<$action>
+
+  # In case of hook
+  my ( $plugin, $callback ) = @{ $action }{qw( plugin callback )};
+
+  # In case of method
+  my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
+
+The hash reference including the plugin and the callback or function.
+
+This argument is passed to all C<'register_hook'>, C<'reigster_method'>, C<'run_hook'> and C<'call_method'>.
+
+=item C<$args>
+
+The argument specified by the L<run_hook> or L<call_method> method.
+
+This argument is passed to C<'run_hook'> and C<'call_method'>.
 
 =back
 
-=head2 hookable_filter_prefix
-
-  $hook->hookable_filter_prefix('myfilter_prefix');
-
-This method is accessor of filter prefix;
-
-When finding filter in call_filer_method,
-prefix specified by this method is used.
-
-The character which can be used for the filter prefix is C<[a-zA-Z_]>.
+=back
 
 =head1 UTILITY METHODS
 
 =head2 registered_hooks
 
-  my @hooks = $hook->registered_hooks( $plugin );
-  my @hooks = $hook->registered_hooks( 'ClassName' );
+  my $all_hook_data = $hook->registered_hooks;
+  #  $all_hook_data = { 'hook.name' => [ { plugin => $plugin callback => \&callback }, ... ] ... };
 
-This method returns a registered hook name.
+  my @all_hook_name = $hook->registered_hooks;
+  #  @all_hook_name = qw( hook.A hook.B hook.C ... );
+  
+  my $registered_data = $hook->registered_hooks( $plugin );
+  #  $registered_data = [ 'hook.A' => \&callabck, 'hook.B' => \&callback, ... ];
+  
+  my @registered_hooks = $hook->registered_hooks( $plugin );
+  #  @registered_hooks = qw( hook.A hook.B hook.C ... );
+  
+  my $registered_data = $hook->registered_hooks( \&callback );
+  #  $registered_data = [ 'hook.A' => $plugin, 'hook.B' => $plugin, ... ];
 
-When calling without arguments, all registered hook name is returned.
+  my @registered_hooks = $hook->registered_hooks( \&callback );
+  #  @registered_hooks = qw( hook.A hook.B hook.C ... );
 
-And when specifying plugin obejct (or Class name) as an argument,
-the hook name with which a plugin is registered is returned.
+This method gets registered data or a hook name.
 
-=head2 registered_callbacks
+This method returns registered data in scalar context
+and returns registered hooks name in list context.
 
-  for my $action ( $hook->registered_callbacks('hook.name') ) {
-      my ( $plugin, $callback ) = @{ $action }{qw( plugin callback )};
-      # some code
-  }
+B<List of arguments and return values>:
 
-This method returns plugin and callback registered with a hook.
+=over
 
-Return value is a list of hash reference including plugin and callback.
-When there are no registered plugin and callback, this method returns empty list.
+=item when there are no arguments
+
+=over
+
+=item scalar context
+
+This method returns all registered data.
+
+This data is same as C<$hook-E<gt>class_hookable_hooks>.
+
+=item list context
+
+This method returns a registered all hook name.
+
+=back
+
+=item when a registered C<$plugin> object was specified
+
+=over
+
+=item scalar context
+
+This method returns the hook name with which a plugin is registered
+and the callback when registering.
+
+The returned value is ARRAY reference, and the contents are the following feeling.
+
+  [
+      'hook.A' => \&callbackA,
+      'hook.B' => \&callbackB,
+      ...
+  ]
+
+=item list context
+
+This method returns the hook name with which a plugin is registered.
+
+=back
+
+=item when registered C<\&callback> was specified
+
+=over
+
+=item scalar context
+
+This method returns the hook name with which callback is registered
+and the plugin when registering.
+
+The returned value is ARRAY reference, and the contents are the following feeling.
+
+  [
+      'hook.A' => $plugin,
+      'hook.B' => $plugin,
+      ...
+  ]
+
+=item list context
+
+This method returns the hook name with which callback is registered.
+
+=back
+
+=back
 
 =head2 registered_methods
 
-  my @methods = $hook->registered_methods( $plugin );
-  my @methods = $hook->registered_methods( 'ClassName' );
+  my $all_hook_data = $hook->registered_methods;
+  #  $all_hook_data = { 'method.name' => { plugin => $plugin, function => \&function, }, ... };
 
-This method returns a registered method names.
+  my @all_hook_name = $hook->registered_methods;
+  #  @all_hook_name = qw( method.A method.B method.C ... );
+  
+  my $registered_data = $hook->registered_methods( $plugin );
+  #  $registered_data = [ 'method.A' => \&function, 'method.B' => \&function, ... ];
+  
+  my @registered_methods = $hook->registered_methods( $plugin );
+  #  @registered_methods = qw( method.A method.B method.C ... );
+  
+  my $registered_data = $hook->registered_methods( \&function );
+  #  $registered_data = [ 'method.A' => \&function, 'method.B' => \&function ];
 
-When calling without arguments, all registered method name is returned.
-and When specifying plugin object (or class name) as an arguments,
-the method name with which a plugin is registered is returned.
+  my @registered_methods = $hook->registered_hooks( \&function );
+  #  @registered_methods = qw( method.A method.B method.C ... );
 
-=head2 registered_function
+This method gets registered data or a method name.
 
-  my $action = $hook->registered_function('method.name');
-  my ( $plugin, $function ) = @{ $action }{qw( plugin function )};
+This method returns registered data in scalar context
+and returns registered methods name in list context.
 
-This method returns plugin and callback registered with a method.
+B<List of arguments and return values>:
 
-Return value is a hash reference including plugin and callback.
-When nothing is registered, no this methods are returned.
+=over
 
-=head2 delete_hook
+=item when there are no arguments
 
-  $hook->delete_hook( 'hook.name' );
-  $hook->delete_hook( 'hook.name' => ( $pluginA, 'ClassName' ) );
+=over
 
-This method deletes a registered hook.
+=item scalar context
 
-Hook name is specified as the first argument,
-and plugin object or class name is specified as an argument after that.
+This method returns all registered data.
 
-When specifying only a hook as an argument,
-all plugin registered with the hook are deleted.
+This data is same as C<$hook-E<gt>class_hookable_methods>.
 
-And when specifying a hook and plugin object (or class name) as arguments,
-specified plugins are deleted from specified hooks.
+=item list context
 
-=head2 delete_callback
+This method returns a registered all method name.
 
-  $hook->delete_callback( $plugin->can('callback') );
-  $hook->delete_callback( \&callback => qw( hook.A hook.B ) );
+=back
 
-This method deletes a registered callback.
+=item when a registered C<$plugin> object was specified
 
-Callback (CODE reference) is specified as the first argument,
-and some hook names are specified after that.
+=over
 
-When specifying only a callback as an argument,
-all callbacks registered with the hook are deleted.
+=item scalar context
 
-And When specifying callback and hook names as arguments,
-specified callbacks are deleted from specified hooks.
+This method returns the method name with which a plugin is registered
+and the function when registering.
 
-=head2 delete_method
+The returned value is ARRAY reference, and the contents are the following feeling.
 
-  $hook->delete_method('method.name');
+  [
+      'method.A' => \&functionA,
+      'method.B' => \&functionB,
+      ...
+  ]
 
-This method deleted a registered hookable method.
-The method name is specified as an argument.
+=item list context
 
-=head2 delete_function
+This method returns the method name with which a plugin is registered.
 
-  $hook->delete_function( $plugin->can('function') );:
-  $hook->delete_function( \&function => qw( method.A method.B ) );
+=back
 
-This method deletes a registered function.
+=item when registered C<\&function> was specified
 
-Function (CODE reference) is specified as the first argument.
-and some method names are specified after that.
+=over
 
-When specifying only a function as an argument,
-all functions registered with the method are deleted.
+=item scalar context
 
-And when specifying function and method names as arguments,
-specified functions are deleted from specified methods. 
+This method returns the method name with which function is registered
+and the plugin when registering.
 
-=head2 delete_plugin
+The returned value is ARRAY reference, and the contents are the following feeling.
 
-  $hook->delete_plugin( $plugin );
-  $hook->delete_plugin( ClassName => qw( hook.A method.A ) );
+  [
+      'method.A' => $plugin,
+      'method.B' => $plugin,
+      ...
+  ]
 
-This method deletes a registered plugin.
+=item list context
 
-A plugin object or class name is specified as the first argument,
-and hook names or method names are specified as an argument after that.
+This method returns the hook name with which callback is registered.
 
-When specifying only a plugin object (or class name) as an argument,
-a plugin is deleted from all hooks and all methods.
+=back
 
-And when specifying a plugin object (or class name) and hook names or method names as arguments,
-a plugin is deleted from specified hooks and specified methods.
+=back
+
+=head2 remove_hook
+
+  $hook->remove_hook( target => $plugin );
+  $hook->remove_hook( target => $plugin->can('callback') );
+  $hook->remove_hook( target => { plugin => $plugin, callback => $plugin->can('callback') } );
+  $hook->remove_hook( target => [ $pluginA \&callbackB, \%expressonC ] );
+  
+  $hook->remove_hook( target => $plugin, from => 'hook.name' );
+  $hook->remove_hook( target => $plugin, from => [qw( hook.A hook.B )] );
+  
+  $hook->remove_hook( target => \@targets, from => \@hooks );
+  
+  my $removed = $hook->remove_hook( target => $plugin );
+
+This method deleted hook which matches the specified condition.
+
+B<About Arguments>:
+
+=over
+
+=item C<'target'>
+
+An deleted target is specified.
+
+They are C<$plugin>, C<\&callback> and C<\%hash_ref> that it can be specified as this argument.
+
+When specifying plugin and callback in hash reference, hook with designated plugin and calllback is deleted.
+
+It is possible to specify more than one deletion target using Array reference.
+
+This argument is indispensable.
+
+=item C<'from'>
+
+It is specified in which hook an deletion target is deleted.
+
+More than one hook can be specified by using Arrary reference.
+
+When this argument was not specified, an deletion target is deleted from all hook.
+
+=back
+
+B<About Return value>
+
+This method returns deleted hook to a return value.
+
+A return value is the following feeling:
+
+  $removed = {
+      'hook.A' => [
+          { plugin => $plugin, callback => \&callback },
+          { plugin => $plugin, callback => \&callback },
+      ],
+      'hook.B' => [
+          { plugin => $plugin, callback => \&callback },
+          { plugin => $plugin, callback => \&callback },
+      ],
+  }
+
+=head2 remove_method
+
+  $hook->remove_method( target => $plugin );
+  $hook->remove_method( target => $plugin->can('function') );
+  $hook->remove_method( target => { plugin => $plugin, function => $plugin->can('function') } );
+  $hook->remove_method( target => [ $pluginA \&functionB, \%expressonC ] );
+  
+  $hook->remove_method( target => $plugin, from => 'method.name' );
+  $hook->remove_method( target => $plugin, from => [qw( method.A method.B )] );
+  
+  $hook->remove_method( target => \@targets, from => \@methods, );
+  
+  my $removed = $hook->remove_method( target => $plugin );
+
+This method deleted method which matches the specified condition.
+
+B<About Arguments>:
+
+=over
+
+=item C<'target'>
+
+An deleted target is specified.
+
+They are C<$plugin>, C<\&function> and C<\%hash_ref> that it can be specified as this argument.
+
+When specifying plugin and callback in hash reference, hook with designated plugin and function is deleted.
+
+It is possible to specify more than one deletion target using Array reference.
+
+This argument is indispensable.
+
+=item C<'from'>
+
+It is specified in which method an deletion target is deleted.
+
+More than one method can be specified by using Arrary reference.
+
+When this argument was not specified, an deletion target is deleted from all method.
+
+=back
+
+B<About Return value>
+
+This method returns deleted method to a return value.
+
+A return value is the following feeling:
+
+  $removed = {
+      'method.A' => { plugin => $plugin, function => \&function },
+      'method.B' => { plugin => $plugin, function => \&function },
+  }
+
+=head2 clear_hooks
+
+  # clear 'hook.A' and 'hook.B'
+  $hook->clear_hooks(qw( hook.A hook.B ));
+  
+  # clear all
+  $hook->clear_hooks;
+  
+  my $removed = $hook->clear_hooks;
+
+This method deleted all registered hooks.
+
+An deleted hook name is specified as an argument.
+
+When arguments were specified, all plugin registered with specified hooks are deleted,
+and when arguments are not specified, all plugins are deleted from all hooks.
+
+A return value of this method is such feeling:
+
+  $removed = {
+      'hook.A' => [
+          { plugin => $pluginA, callback => $pluginA->can('foo') },
+          { plugin => $pluginB, callback => $pluginB->can('bar') },
+          ...
+      ],
+      'hook.B' => [
+          { plugin => $pluginA, callback => $pluginA->can('foo') },
+          { plugin => $pluginB, callback => $pluginB->can('bar') },
+          ...
+      ],
+      ...
+  };
+
+=head2 clear_methods
+
+  # clear 'method.A' and 'methodB'
+  $hook->clear_methods(qw( method.A method.B ));
+  
+  # clear all
+  $hook->clear_methods;
+  
+  my $removed = $hook->clear_methods;
+
+This method deletes all registered method.
+
+An deleted method name is specified as an argument.
+
+When arguments were specified, a plugin registered with specified method is deleted,
+and when arguments are not specified, all plugins are deleted from all methods.
+
+A return value of this method is such feeling:
+
+  $removed = {
+      'method.A' => { plugin => $pluginA, function => $pluginA->can('foo') },
+      'method.B' => { plugin => $pluginB, function => %pluginB->can('bar') },
+      ...
+  };
 
 =head1 ACCESSOR METOHDS
 
-=head2 hookable_stash
+=head2 class_hookable_stash
 
-  my $data = $hook->hookable_stash;
+  my $data = $hook->class_hookable_stash;
 
 This method is stash in Class::Hookable.
 All variables Class::Hookable needs are put here.
@@ -949,35 +1162,40 @@ All variables Class::Hookable needs are put here.
 This method does not get arguments,
 and return hash reference includes all variables.
 
-=head2 hookable_context
+=head2 class_hookable_context
 
   # set
-  $hook->hookable_context( $context );
+  $hook->class_hookable_context( $context );
   # get
-  my $context = $hook->hookable_context;
+  my $context = $hook->class_hookable_context;
 
 This method is accessor of context object.
-
-blessed object or class name is specified as the context object.
 
 Context object specified by this method is passed as the second argument of
 the subroutine registered with hook and method.
 
-see also L<"run_hook">.
+see also L<"run_hook"> and L<"call_method">.
 
-=head2 hookable_all_hooks
+=head2 class_hookable_hooks
 
-  my $hooks = $hook->hookable_all_hooks;
+  my $hooks = $hook->class_hookable_hooks;
 
 This method is accessor to hash reference which keeps hooks.
 all method of Class::Hookable is accessing hooks through this method.
 
-=head2 hookable_all_methods
+=head2 class_hookable_methods
 
-  my $methods = $hook->hookable_all_methods;
+  my $methods = $hook->class_hookable_methods;
 
 This method is accesor to hash reference which keeps methods.
 all method of Class::Hookable is accessing methods through this method.
+
+=head2 class_hookable_filters
+
+  my $filters = $hook->class_hookable_filters;
+
+This method is accessor to hash reference which keeps filters.
+all filter of Class::Hookable is accessing filters through this method.
 
 =head1 AUTHOR
 

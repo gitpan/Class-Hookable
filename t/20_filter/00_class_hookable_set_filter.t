@@ -8,12 +8,12 @@ use Class::Hookable;
 
 my $hook = Class::Hookable->new;
 
-$hook->hookable_set_filter(
+$hook->class_hookable_set_filter(
     run_hook => \&filter,
 );
 
 is(
-    $hook->hookable_stash->{'filters'}->{'run_hook'},
+    $hook->class_hookable_filters->{'run_hook'},
     \&filter,
 );
 

@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More tests => 4 + 1 + 6;
 use Class::Hookable;
+use lib 't';
+use DummyClass;
 
 my $hook    = Class::Hookable->new;
 my $plugin  = Plugin->new;
@@ -40,7 +42,7 @@ sub call {
 
 # -- context test -------------------- #
 
-$hook->hookable_context( Context->new );
+$hook->class_hookable_context( Context->new );
 $hook->call_method('context');
 
 sub context {
@@ -50,9 +52,9 @@ sub context {
 
 # -- filter test --------------------- #
 
-$hook->hookable_set_filter(
+$hook->class_hookable_set_filter(
     'call_method' => sub {
-        my ( $self, $filter, $method, $args, $action ) = @_;
+        my ( $self, $filter, $method, $action, $args ) = @_;
 
         isa_ok( $self, 'Class::Hookable' );
         is( $filter, 'call_method' );
@@ -74,12 +76,3 @@ is(
     $hook->call_method('filter'),
     undef,
 );
-
-package Plugin;
-
-sub new { bless {}, shift }
-sub foo {}
-
-package Context;
-
-sub new { bless {}, shift }
