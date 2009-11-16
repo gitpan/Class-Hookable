@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::Hookable
 
+0.07  Mon Nov 16 11:09:10 JST 2009
+        * POD fix
+        * change email address
+
 0.06  Sun Apr 20 18:53:26 JST 2008
         * Substantial Changes *
           The change to which it isn't compatible is included in this change.

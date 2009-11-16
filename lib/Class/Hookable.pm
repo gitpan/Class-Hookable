@@ -7,7 +7,7 @@ use Carp ();
 use Scalar::Util ();
 
 use vars qw( $VERSION );
-$VERSION = '0.06';
+$VERSION = '0.07';
 
 sub new { bless {}, shift }
 
@@ -651,7 +651,7 @@ The plugin object which passed a plugin and function to the register_method meth
 When C<$hook-E<gt>hookable_context> is specified, the specified object is passed,
 and when it isn't so, object of Class::Hookable (or object of inherited Class::Hookable class) is passed.
 
-Please see L<"hookable_context"> about context object which can be specified in C<$hook-E<gt>hookable_context>.
+Please see L<"class_hookable_context"> about context object which can be specified in C<$hook-E<gt>hookable_context>.
 
 =item C<$args>
 
@@ -698,7 +698,7 @@ When prefix is not specified, this method returns C<'class_hookable_filter'> by 
 
 =head2 class_hookable_filter
 
-  my $result = $hook->hookable_call_filter( $filter => @args );
+  my $result = $hook->class_hookable_filter( $filter => @args );
 
 This method calls a specified filter.
 
@@ -726,16 +726,16 @@ B<Arguments of filter>:
 
   $hook->class_hookable_set_filter(
       register_hook     => sub {
-          my ( $hook, $filter, $hook, $action ) = @_;
+          my ( $self, $filter, $hook, $action ) = @_;
       },
       register_method   => sub {
-          my ( $hook, $filter, $method, $action ) = @_;
+          my ( $self, $filter, $method, $action ) = @_;
       },
       run_hook          => sub {
-          my ( $hook, $filter, $hook, $action, $args ) = @_;
+          my ( $self, $filter, $hook, $action, $args ) = @_;
       },
       call_method       => sub {
-          my ( $hook, $filter, $method, $action, $args ) = @_;
+          my ( $self, $filter, $method, $action, $args ) = @_;
       },
   )
 
@@ -744,7 +744,7 @@ C<'run_hook'> and C<'call_method'>, and the argument to which it's passed is as 
 
 =over
 
-=item C<$hook>
+=item C<$self>
 
 Instance of Class::Hookable ( or the class inheriting to Class::Hookable ).
 
@@ -1201,7 +1201,7 @@ all filter of Class::Hookable is accessing filters through this method.
 
 Original idea by Tatsuhiko Miyagawa L<http://search.cpan.org/~miyagawa> in L<Plagger>
 
-Code by Naoki Okamura (Nyarla) E<lt>thotep@nayrla.netE<gt>
+Code by Naoki Okamura (Nyarla) E<lt>nyarla[:)]thotep.netE<gt>
 
 =head1 LICENSE
 

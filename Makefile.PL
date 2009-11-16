@@ -3,7 +3,7 @@ use inc::Module::Install;
 name 'Class-Hookable';
 all_from 'lib/Class/Hookable.pm';
 
-author 'Naoki Okamura (Nyarla) <thotep@nyarla.net>';
+author 'Naoki Okamura (Nyarla) <nyarla[:)]thotep.net>';
 
 requires 'Carp';
 requires 'Scalar::Util';
