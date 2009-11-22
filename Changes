@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::Hookable
 
+0.08  Sun Nov 22 13:34:05 JST 2009
+        * removed `.git` directory from dist
+
 0.07  Mon Nov 16 11:09:10 JST 2009
         * POD fix
         * change email address
